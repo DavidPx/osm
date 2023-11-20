@@ -160,8 +160,7 @@ for (const way of buildingsToTouch) {
         }
     }
 
-    // add the first onto the back
-    originalNodes.push(originalNodes[0]);
+    // add the first onto the back.  The original way will already have this feature
     destNodes.push(destNodes[0]);
 
     //buildAddCommand()
