@@ -33,7 +33,7 @@ import {
 import { WayBuilder } from 'josm/builder';
 import { getPrimitiveTagsAsObject } from 'utility';
 
-const radToDegree = (r) => r * 180 / Math.PI;
+const radToDegree = (r) => r * 180 / Math.PI; // handy for debugging
 const OneEightyDegreesInRadians = Math.PI;
 
 console.clear();
@@ -170,5 +170,5 @@ for (const way of buildingsToTouch) {
         .withTags(getPrimitiveTagsAsObject(way))
         .create();
 
-    //buildChangeCommand(, {nodes: originalNodes}).applyTo(layer);
+    console.println(`way ${way.getId()} split!`);
 }
