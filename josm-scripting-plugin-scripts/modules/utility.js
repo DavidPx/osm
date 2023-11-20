@@ -39,3 +39,11 @@ export const findContainingWay = (way, waysToTest) => {
 
     return returnWay;
 }
+
+export const getPrimitiveTagsAsObject = (primitive) => {
+    const tags = {};
+    primitive.getKeys().entrySet().forEach(x => {
+        tags[x.getKey()] = x.getValue();
+        });
+    return tags;
+}
