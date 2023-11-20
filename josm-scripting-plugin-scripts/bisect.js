@@ -18,6 +18,8 @@
 
     Tags from the original building are copied to the new way.
 
+    Graal setup - add this repo's modules directory as a module search path.
+
 */
 import josm from 'josm'
 import * as console from 'josm/scriptingconsole'

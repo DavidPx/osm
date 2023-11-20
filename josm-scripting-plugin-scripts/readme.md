@@ -11,6 +11,8 @@ Using parcel data in another layer this script will fetch and apply the correct 
 
 This script is able to bisect a closed way (building) into two halves along the long axis.
 
+[Script][./bisect.js]
+
 ## Duplicate Way Finders
 - select-duplicate-ways-by-node.js
 - select-duplicate-ways.js
