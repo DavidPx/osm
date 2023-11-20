@@ -52,11 +52,9 @@ activeDataSet.clearSelection();
 
 for (const way of buildingsToTouch) {
 
-    // find the most distant pair of nodes; this will be the long side of the building
-    // could get more fancy by finding the way segment that's in line with the longes axis
-
+    // Collect the heading angle and length of each way segment
+	  // headings are based on 0 degrees North and are always positive, (0 to 360), in a clockwise direction.
     const data = [];
-
     const pairs = way.getNodePairs(false);
 
     for (const pair of pairs) {
@@ -65,6 +63,7 @@ for (const way of buildingsToTouch) {
         const enB = pair.b.getEastNorth(projection);
 
         let headingRadians = enA.heading(enB);
+				// we don't care which direction the way is, just its slope.  Normalize to 0 to 180.
         if (headingRadians > OneEightyDegreesInRadians) headingRadians -= OneEightyDegreesInRadians;
 
         data.push({
@@ -73,10 +72,10 @@ for (const way of buildingsToTouch) {
         });
     }
 
-    // OSB buildings are prettb angular so we're not going to get buildings with a wide variety of angles.
+    // OSB buildings are pretty angular so we're not going to get buildings with a wide variety of angles.
     // If a given angle is +- a few degrees from the bucket include it
-    // If a building is being troublesome straighten it out with ctrl+q
-    const angleFudge = 0.0261799;
+    // If a building is being troublesome straighten it out with ctrl+q (orthoganalize)
+    const angleFudge = 1.5 * Math.PI / 180;
     const stats = data.reduce((acc, curr) => {
         const bucket = acc.find(x => x.angleAverage > curr.angle - angleFudge && x.angleAverage < curr.angle + angleFudge);
         if (!bucket) {
@@ -106,22 +105,24 @@ for (const way of buildingsToTouch) {
     const centroidEN = Geometry.getCentroid(way.getNodes());
 
     // make a crossing way so that we can run the handy intersect function
-    const end1 = centroidEN.add(150, 0);
+	  const end1 = centroidEN.add(150, 0);
     const end2 = centroidEN.add(-150, 0);
 
+	  // this crossing line is vertical 
     const end1final = end1.rotate(centroidEN, winningBucket.angleAverage);
     const end2final = end2.rotate(centroidEN, winningBucket.angleAverage);
 
     const n1 = new Node(end1final);
     const n2 = new Node(end2final);
 
+		// TODO: look into using Geometry.getSegmentSegmentIntersection computing the crossing points intead of the dummy way.
+	  // https://josm.openstreetmap.de/doc/org/openstreetmap/josm/tools/Geometry.html#getSegmentSegmentIntersection-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-
     const bisectWay = new Way();
 
     bisectWay.addNode(n1);
     bisectWay.addNode(n2);
 
     buildAddCommand(n1, n2, bisectWay).applyTo(activeLayer);
-
 
     // TODO: look into the add commands this can populate
     const intersections = Geometry.addIntersections([bisectWay, way], false, []).toArray();
@@ -135,7 +136,7 @@ for (const way of buildingsToTouch) {
         way.addNode(ws.getUpperIndex(), node);
     }
 
-    // clear the working way
+    // remove the working way
     activeDataSet.removePrimitives([bisectWay, n1, n2]);
 
     // now split the way in twain.  Move some nodes to the destination and copy the intersection
