@@ -104,11 +104,11 @@ for (const way of buildingsToTouch) {
     // center of building
     const centroidEN = Geometry.getCentroid(way.getNodes());
 
-    // make a crossing way so that we can run the handy intersect function
+    // make a dummy crossing way so that we can run the handy intersect function
 	  const end1 = centroidEN.add(150, 0);
     const end2 = centroidEN.add(-150, 0);
 
-	  // this crossing line is vertical 
+	  // this crossing line is horizontal (0 + 90) so we only need to rotate by the winning angle (from 0 north) to get a perpendicular line.
     const end1final = end1.rotate(centroidEN, winningBucket.angleAverage);
     const end2final = end2.rotate(centroidEN, winningBucket.angleAverage);
 
