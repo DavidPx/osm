@@ -9,9 +9,11 @@ Using parcel data in another layer this script will fetch and apply the correct 
 
 ## Building Bisector
 
-This script is able to bisect a closed way (building) into two halves along the long axis.
+This script is able to bisect a closed way (building) into two halves along the long axis.  It handles irregularly-shaped buildings which the terrace plugin has trouble with.
 
-[Script][./bisect.js]
+[Script](bisect.js)
+
+![example](./content/bisect-example.png)
 
 ## Duplicate Way Finders
 - select-duplicate-ways-by-node.js
