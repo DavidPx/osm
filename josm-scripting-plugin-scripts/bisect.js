@@ -72,7 +72,7 @@ for (const way of buildingsToTouch) {
         });
     }
 
-    // OSB buildings are pretty angular so we're not going to get buildings with a wide variety of angles.
+    // OSM buildings are pretty angular so we're not going to get buildings with a wide variety of angles.
     // If a given angle is +- a few degrees from the bucket include it
     // If a building is being troublesome straighten it out with ctrl+q (orthoganalize)
     const angleFudge = 1.5 * Math.PI / 180;
