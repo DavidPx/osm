@@ -24,8 +24,6 @@
 import josm from 'josm'
 import * as console from 'josm/scriptingconsole'
 const Geometry = Java.type('org.openstreetmap.josm.tools.Geometry');
-const Node = Java.type("org.openstreetmap.josm.data.osm.Node");
-const Way = Java.type("org.openstreetmap.josm.data.osm.Way");
 const OsmPrimitiveType = Java.type('org.openstreetmap.josm.data.osm.OsmPrimitiveType');
 const ProjectionRegistry = Java.type('org.openstreetmap.josm.data.projection.ProjectionRegistry');
 import {
@@ -33,7 +31,7 @@ import {
     buildChangeCommand
 } from 'josm/command'
 import { WayBuilder } from 'josm/builder';
-import { getPrimitiveTagsAsObject } from 'utility';
+import { getPrimitiveTagsAsObject, getSegmentWayIntersections } from 'utility';
 
 const radToDegree = (r) => r * 180 / Math.PI; // handy for debugging
 const OneEightyDegreesInRadians = Math.PI;
@@ -53,7 +51,7 @@ activeDataSet.clearSelection();
 for (const way of buildingsToTouch) {
 
     // Collect the heading angle and length of each way segment
-	  // headings are based on 0 degrees North and are always positive, (0 to 360), in a clockwise direction.
+    // headings are based on 0 degrees North and are always positive, (0 to 360), in a clockwise direction.
     const data = [];
     const pairs = way.getNodePairs(false);
 
@@ -63,7 +61,7 @@ for (const way of buildingsToTouch) {
         const enB = pair.b.getEastNorth(projection);
 
         let headingRadians = enA.heading(enB);
-				// we don't care which direction the way is, just its slope.  Normalize to 0 to 180.
+        // we don't care which direction the way is, just its slope.  Normalize to 0 to 180.
         if (headingRadians > OneEightyDegreesInRadians) headingRadians -= OneEightyDegreesInRadians;
 
         data.push({
@@ -104,50 +102,31 @@ for (const way of buildingsToTouch) {
     // center of building
     const centroidEN = Geometry.getCentroid(way.getNodes());
 
-    // make a dummy crossing way so that we can run the handy intersect function
-	  const end1 = centroidEN.add(150, 0);
-    const end2 = centroidEN.add(-150, 0);
+    // this crossing line is horizontal (0 + 90) so we only need to rotate by the winning angle (from 0 north) to get a perpendicular line.
+    const end1 = centroidEN.add(150, 0).rotate(centroidEN, winningBucket.angleAverage);
+    const end2 = centroidEN.add(-150, 0).rotate(centroidEN, winningBucket.angleAverage);
 
-	  // this crossing line is horizontal (0 + 90) so we only need to rotate by the winning angle (from 0 north) to get a perpendicular line.
-    const end1final = end1.rotate(centroidEN, winningBucket.angleAverage);
-    const end2final = end2.rotate(centroidEN, winningBucket.angleAverage);
+    const intersectionNodes = getSegmentWayIntersections(way, end1, end2);
+    buildAddCommand(intersectionNodes).applyTo(activeLayer);
 
-    const n1 = new Node(end1final);
-    const n2 = new Node(end2final);
-
-		// TODO: look into using Geometry.getSegmentSegmentIntersection computing the crossing points intead of the dummy way.
-	  // https://josm.openstreetmap.de/doc/org/openstreetmap/josm/tools/Geometry.html#getSegmentSegmentIntersection-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-org.openstreetmap.josm.data.coor.EastNorth-
-    const bisectWay = new Way();
-
-    bisectWay.addNode(n1);
-    bisectWay.addNode(n2);
-
-    buildAddCommand(n1, n2, bisectWay).applyTo(activeLayer);
-
-    // TODO: look into the add commands this can populate
-    const intersections = Geometry.addIntersections([bisectWay, way], false, []).toArray();
-
-    buildAddCommand(intersections).applyTo(activeLayer);
-
-    for (const node of intersections) {
+    // make a new list of nodes so we can use the change command
+    const wayNodes = way.getNodes();
+    
+	let spliceCount = 0;
+    for (const node of intersectionNodes) {
         const ws = Geometry.getClosestWaySegment(way, node);
-        // TODO: make this node addition undoable.  If the above intersection addition command is undone the way will be left with non-existent nodes and JOSM will get crashy around that way.
-        // One can at least restore the way by selected it and then doing File > Update Selection.
-        way.addNode(ws.getUpperIndex(), node);
+        wayNodes.splice(ws.getUpperIndex() + spliceCount++, 0, node);
     }
-
-    // remove the working way
-    activeDataSet.removePrimitives([bisectWay, n1, n2]);
 
     // now split the way in twain.  Move some nodes to the destination and copy the intersection
     const originalNodes = []
     const destNodes = [];
 
     let moveNode = false;
-    for (const node of way.getNodes()) {
+    for (const node of wayNodes) {
         // copy the intersection nodes
         // start moving after we've hit one intersection node and stop after we've hit the other
-        if (intersections.some(x => x === node)) {
+        if (intersectionNodes.some(x => x === node)) {
             moveNode = !moveNode;
             // always copy intersection nodes
             originalNodes.push(node);
@@ -164,13 +143,13 @@ for (const way of buildingsToTouch) {
     // add the first onto the back.  The original way will already have this feature
     destNodes.push(destNodes[0]);
 
-    //buildAddCommand()
     buildChangeCommand(way, { nodes: originalNodes }).applyTo(activeLayer);
-    WayBuilder
-        .forDataSet(activeDataSet)
-        .withNodes(destNodes)
-        .withTags(getPrimitiveTagsAsObject(way))
-        .create();
+    buildAddCommand(
+	    WayBuilder
+	        .forDataSet(activeDataSet)
+	        .withNodes(destNodes)
+	        .withTags(getPrimitiveTagsAsObject(way))
+	        .create()).applyTo(activeLayer);
 
     console.println(`way ${way.getId()} split!`);
 }

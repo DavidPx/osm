@@ -1,5 +1,7 @@
 const Geometry = Java.type('org.openstreetmap.josm.tools.Geometry');
 import * as console from 'josm/scriptingconsole'
+const ProjectionRegistry = Java.type('org.openstreetmap.josm.data.projection.ProjectionRegistry');
+const Node = Java.type("org.openstreetmap.josm.data.osm.Node");
 
 const ArrayList = Java.type('java.util.ArrayList');
 
@@ -46,4 +48,24 @@ export const getPrimitiveTagsAsObject = (primitive) => {
         tags[x.getKey()] = x.getValue();
         });
     return tags;
+}
+
+/*
+    Returns Nodes where the given way intersects the given EastNorth segment
+*/
+export const getSegmentWayIntersections = (way, en1, en2) => {
+    const pairs = way.getNodePairs(false);
+    const projection = ProjectionRegistry.getProjection();
+
+    return pairs.reduce((acc, pair) => {
+        const enA = pair.a.getEastNorth(projection);
+        const enB = pair.b.getEastNorth(projection);
+
+        const resultEN = Geometry.getSegmentSegmentIntersection(en1, en2, enA, enB);
+
+        if (resultEN) {
+            acc.push(new Node(resultEN));
+        }
+        return acc;
+    }, []);
 }
