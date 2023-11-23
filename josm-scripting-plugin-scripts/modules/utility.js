@@ -69,3 +69,10 @@ export const getSegmentWayIntersections = (way, en1, en2) => {
         return acc;
     }, []);
 }
+
+let t = Date.now();
+export const printElapsed = (msg) => {
+	const z = Date.now();
+	console.println(`${z - t}ms\t${msg}`);
+	t = z;
+}

@@ -3,8 +3,7 @@ import { assert } from 'josm/util';
 import * as console from 'josm/scriptingconsole'
 import { DataSetUtil } from 'josm/ds'
 import { buildChangeCommand } from 'josm/command'
-import { lookupPrefix, findContainingWay } from 'utility';
-
+import { lookupPrefix, findContainingWay, printElapsed } from 'utility';
 
 const OsmPrimitiveType = Java.type('org.openstreetmap.josm.data.osm.OsmPrimitiveType');
 const BBox = Java.type('org.openstreetmap.josm.data.osm.BBox');
@@ -17,12 +16,7 @@ const parcelLayer = josm.layers.get("V900_Wisconsin_Parcels_OZAUKEE.geojson");
 const activeDataSet = activeLayer.getDataSet();
 const selectedBuildings = activeDataSet.getAllSelected().toArray();
 
-let t = Date.now();
-const printElapsed = (msg) => {
-	const z = Date.now();
-	console.println(`${z - t}ms\t${msg}`);
-	t = z;
-}
+console.clear();
 
 assert(selectedBuildings.length > 0, "Nothing selected");
 
@@ -44,13 +38,14 @@ printElapsed("searched for parcels");
 
 const buildingDataSetUtil = new DataSetUtil(activeDataSet);
 
-// find what city we're in.  This might break if working on the boundary.  Use an intersection test instead?  But then you'd get multiple matches.
-const cityMatches = buildingDataSetUtil.query("type:relation AND admin_level=8");
+// Pre-load the area cities
+const localCities = buildingDataSetUtil.query("type:relation AND admin_level=8");
 
 printElapsed("searched for cities");
 
 const getParcelCity = way => {
-	const match = cityMatches.find(x => x.getBBox().bounds(way.getBBox()));
+	const wayNodes = way.getNodes();
+	const match = localCities.find(x => Geometry.isPolygonInsideMultiPolygon(wayNodes, x, null));
 	if (match) return match.get("name");
 	return null;
 }
@@ -59,12 +54,16 @@ const buildingsToTouch = selectedBuildings.filter(x => x.getType() == OsmPrimiti
 const touchedBuildings = [];
 const streetCache = [];
 const extraMessages = [];
-const cityMap = [];
+const cityCache = [];
+
+
 
 printElapsed("filtered buildings");
+let buildingIndex = 0;
 
 for (const building of buildingsToTouch) {
 
+	let parcelSearchCount = 0;
 	const buildingArea = Geometry.getArea(building.getNodes());
 	const touchingParcels = [];
 	let goodParcel = null;
@@ -79,7 +78,9 @@ for (const building of buildingsToTouch) {
 			//console.println(`touching! ${candidate.get("SITEADRESS")}`);
 			touchingParcels.push(candidate);
 		}
+		parcelSearchCount++;
 	}
+	printElapsed(`building ${buildingIndex}, ${parcelSearchCount} parcels searched.`);
 
 	// Junk parcel data will overlap some buildings... find the parcel whose center is closest to the building's center
 	// I would prefer to figure out which parcel overlaps more area of the building but I can't figure out how to get the area of a java Area object
@@ -98,6 +99,8 @@ for (const building of buildingsToTouch) {
 		city=MEQUON // need to title-case it
 		*/
 		const tags = goodParcel.getKeys();
+
+		// Resolve street address
 		const siteAddress = tags["SITEADRESS"];
 		if (!siteAddress) {
 			extraMessages.push(`parcel with no address!  skipping.  Building center is ${building.getBBox().getCenter()}.  checkme=yes has been set`);
@@ -129,9 +132,10 @@ for (const building of buildingsToTouch) {
 			roadName = cached.osm;
 		}
 		else {
+			let queryIndex = 0;
 			for (const nameQuery of nameQueries) {
 
-				const matches = buildingDataSetUtil.query(`type:way AND highway AND ${nameQuery}`).map(x => x.get("name")).reduce((acc, curr) => {
+				const matches = buildingDataSetUtil.query(`type:way AND highway=* AND ${nameQuery}`).map(x => x.get("name")).reduce((acc, curr) => {
 					if (!acc.includes(curr)) {
 						acc.push(curr);
 					}
@@ -141,6 +145,7 @@ for (const building of buildingsToTouch) {
 				if (matches.length === 1) {
 					roadName = matches[0];
 					streetCache.push({ parcel: cacheKey, osm: roadName });
+					printElapsed(`building ${buildingIndex}, 1 road found.  Query was ${nameQuery}.  Query index ${queryIndex}`);
 					break;
 				}
 				else if (matches.length > 1) {
@@ -149,6 +154,7 @@ for (const building of buildingsToTouch) {
 				else {
 					//console.println(`no matches for ${nameQuery}`);
 				}
+				queryIndex++;
 			}
 		}
 
@@ -160,7 +166,7 @@ for (const building of buildingsToTouch) {
 
 		// resolve city
 		const placeName = tags["PLACENAME"];
-		const cityLookup = cityMap.find(x => x.placeName === placeName);
+		const cityLookup = cityCache.find(x => x.placeName === placeName);
 		let cityName = "";
 		if (!cityLookup) {
 			cityName = getParcelCity(building);
@@ -168,11 +174,13 @@ for (const building of buildingsToTouch) {
 				extraMessages.push(`Could not determine city for ${siteAddress}; relationship and all members needs to be downloaded`);
 				continue;
 			}
-			cityMap.push({ placeName: placeName, osmName: cityName });
+			cityCache.push({ placeName: placeName, osmName: cityName });
 		}
 		else {
 			cityName = cityLookup.osmName;
 		}
+
+		printElapsed(`building ${buildingIndex}, city found.`);
 
 		const newTags = {
 			"addr:city": cityName,
@@ -196,18 +204,16 @@ for (const building of buildingsToTouch) {
 		building.remove("checkme");
 
 		touchedBuildings.push(building);
+		printElapsed(`Done with ${siteAddress}`);
+		buildingIndex++;
 	}
-
-
 }
-
-printElapsed("matched addresses");
 
 // redo the selection in order to JOSM to recognize changed ways; this lets us easily do "upload selected"
 activeDataSet.clearSelection();
 activeDataSet.setSelected(touchedBuildings);
 
-//console.println(`Done!`);
+console.println(`Done!`);
 if (touchedBuildings.length === buildingsToTouch.length) {
 	josm.alert(`All ${buildingsToTouch.length} buildings were addressed!`);
 }
