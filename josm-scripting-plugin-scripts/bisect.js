@@ -109,7 +109,7 @@ for (const way of buildingsToTouch) {
     const intersectionNodes = getSegmentWayIntersections(way, end1, end2);
     buildAddCommand(intersectionNodes).applyTo(activeLayer);
 
-    // make a new list of nodes so we can use the change command
+    // make a new list of nodes so we can use the change command; it needs all the nodes not just the modified ones.
     const wayNodes = way.getNodes();
     
 	let spliceCount = 0;
