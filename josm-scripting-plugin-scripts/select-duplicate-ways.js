@@ -32,6 +32,6 @@ else {
     let i = 0;
     console.println(`error count: ${errors.length}`);
     for (const error of errors) {
-        ds.addSelected(error.getPrimitives().toArray().filter(x => x.get("capture_dates_range") !== null));
+        ds.addSelected(error.getPrimitives().toArray().filter(x => x.isNew()));
     }
 }

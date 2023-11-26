@@ -38,7 +38,7 @@ else {
 		const newNodes = error.getPrimitives().toArray().filter(x => x.isNew());
 
 		for(const newNode of newNodes) {
-			const ways = newNode.getParentWays().filter(x => x.get("release") !== null);
+			const ways = newNode.getParentWays().filter(x => x.isNew());
 			ds.addSelected(ways);	
 		}
     }
